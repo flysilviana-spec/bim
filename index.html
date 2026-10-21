@@ -379,7 +379,7 @@
   async function handleCode(kode) {
     stopScan();
     if (kode.trim().toLowerCase() !== "hadir") {
-      showResult("error", "QR code tidak valid. QR harus bertuliskan \"Hadir\".");
+      showResult("error", "QR code tidak valid");
       return;
     }
     showResult("info", "Mencatat kehadiran...");
@@ -387,7 +387,7 @@
       const status = await rpc("catat_hadir", { p_nis: currentUser.nis, p_password: currentUser.password, p_kode: kode });
       if (status === "ok") showResult("ok", "Hadir berhasil dicatat. Terima kasih!");
       else if (status === "sudah") showResult("ok", "Kehadiran Anda hari ini sudah tercatat.");
-      else if (status === "kode_salah") showResult("error", "QR code tidak valid.");
+      else if (status === "kode_salah") showResult("error", "QR code tidak valid");
       else showResult("error", "Gagal mencatat kehadiran. Silakan login ulang.");
       loadDaftar();
     } catch (err) {

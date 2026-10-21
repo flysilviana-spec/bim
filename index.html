@@ -60,8 +60,6 @@
   .msg.info { background: var(--bg); color: var(--muted); }
   .scanner { display: none; margin-top: 18px; }
   .scanner.show { display: block; }
-  details.manual { margin-top: 14px; text-align: left; font-size: 14px; color: var(--muted); }
-  details.manual summary { cursor: pointer; text-align: center; }
   .row { display: flex; gap: 8px; margin-top: 10px; }
   .row input { flex: 1; min-width: 0; padding: 10px 12px; font-size: 15px; }
   .row .btn { width: auto; margin: 0; padding: 10px 16px; font-size: 15px; }
@@ -137,13 +135,6 @@
       </div>
       <div id="scanResult" class="msg" role="status"></div>
 
-      <details class="manual">
-        <summary>Kamera tidak mendeteksi? Input kode manual</summary>
-        <div class="row">
-          <input id="manualKode" type="text" placeholder="Ketik isi QR, mis. HADIR-2026-10-21" autocomplete="off">
-          <button type="button" class="btn" id="manualBtn">Hadir</button>
-        </div>
-      </details>
 
       <div class="list-head">
         <h2 id="listTitle">Hadir hari ini</h2>
@@ -281,11 +272,11 @@
   async function startScan() {
     scanResult.className = "msg";
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showResult("error", "Kamera tidak tersedia. Buka halaman lewat HTTPS atau localhost, atau pakai input kode manual.");
+      showResult("error", "Kamera tidak tersedia. Buka halaman lewat HTTPS atau localhost.");
       return;
     }
     if (!hasNative && typeof jsQR === "undefined") {
-      showResult("error", "Library pemindai gagal dimuat (cek koneksi internet). Pakai input kode manual.");
+      showResult("error", "Library pemindai gagal dimuat (cek koneksi internet).");
       return;
     }
     try {
@@ -353,6 +344,10 @@
 
   async function handleCode(kode) {
     stopScan();
+    if (kode.trim().toLowerCase() !== "hadir") {
+      showResult("error", "QR code tidak valid. QR harus bertuliskan \"Hadir\".");
+      return;
+    }
     showResult("info", "Mencatat kehadiran...");
     try {
       const status = await rpc("catat_hadir", { p_nis: currentUser.nis, p_password: currentUser.password, p_kode: kode });
@@ -412,13 +407,6 @@
   scanBtn.addEventListener("click", startScan);
   document.getElementById("closeScan").addEventListener("click", stopScan);
   document.getElementById("refreshList").addEventListener("click", loadDaftar);
-  document.getElementById("manualBtn").addEventListener("click", function () {
-    const input = document.getElementById("manualKode");
-    const kode = input.value.trim();
-    if (!kode) { showResult("error", "Isi kode terlebih dahulu."); return; }
-    input.value = "";
-    handleCode(kode);
-  });
 </script>
 </body>
 </html>

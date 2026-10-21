@@ -163,6 +163,42 @@
   const submitBtn = form.querySelector(".btn");
   let currentUser = null; // { nis, password } selama sesi login
 
+  // ===== Sesi login tersimpan (bertahan saat refresh) =====
+  const SESSION_KEY = "sesi_siswa_bim";
+  const SESSION_DAYS = 7;
+
+  function saveSession(user) {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        nis: user.nis, password: user.password, nama: user.nama, kelas: user.kelas,
+        exp: Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000
+      }));
+    } catch (e) { /* penyimpanan tidak tersedia, abaikan */ }
+  }
+
+  function loadSession() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SESSION_KEY));
+      if (saved && saved.nis && saved.password && saved.exp > Date.now()) return saved;
+      localStorage.removeItem(SESSION_KEY);
+    } catch (e) { /* abaikan */ }
+    return null;
+  }
+
+  function clearSession() {
+    try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* abaikan */ }
+  }
+
+  function showWelcome(user) {
+    currentUser = { nis: user.nis, password: user.password };
+    document.getElementById("welcomeName").textContent = "Selamat datang, " + user.nama + "!";
+    document.getElementById("welcomeClass").textContent = user.kelas ? "Kelas " + user.kelas : "NIS " + user.nis;
+    form.style.display = "none";
+    document.querySelector(".brand").style.display = "none";
+    welcome.classList.add("show");
+    loadDaftar();
+  }
+
   function showError(text) {
     errorBox.textContent = text;
     errorBox.classList.add("show");
@@ -204,13 +240,9 @@
       const siswa = await loginSiswa(nis, pw);
       if (!siswa) { showError("NIS atau password salah."); return; }
 
-      currentUser = { nis: siswa.nis, password: pw };
-      document.getElementById("welcomeName").textContent = "Selamat datang, " + siswa.nama + "!";
-      document.getElementById("welcomeClass").textContent = siswa.kelas ? "Kelas " + siswa.kelas : "NIS " + siswa.nis;
-      form.style.display = "none";
-      document.querySelector(".brand").style.display = "none";
-      welcome.classList.add("show");
-      loadDaftar();
+      const user = { nis: siswa.nis, password: pw, nama: siswa.nama, kelas: siswa.kelas };
+      saveSession(user);
+      showWelcome(user);
 
       // Untuk mengarahkan ke halaman lain setelah login, aktifkan baris ini:
       // window.location.href = "dashboard.html";
@@ -223,7 +255,8 @@
     }
   });
 
-  document.getElementById("logout").addEventListener("click", function () {
+  function doLogout() {
+    clearSession();
     stopScan();
     currentUser = null;
     scanResult.className = "msg";
@@ -234,7 +267,8 @@
     document.querySelector(".brand").style.display = "";
     form.reset();
     nisInput.focus();
-  });
+  }
+  document.getElementById("logout").addEventListener("click", doLogout);
 
   // ===== Scan QR Hadir =====
   const scanBtn = document.getElementById("scanBtn");
@@ -407,6 +441,22 @@
   scanBtn.addEventListener("click", startScan);
   document.getElementById("closeScan").addEventListener("click", stopScan);
   document.getElementById("refreshList").addEventListener("click", loadDaftar);
+
+  // ===== Pulihkan sesi saat halaman dibuka / di-refresh =====
+  (async function restoreSession() {
+    const saved = loadSession();
+    if (!saved) return;
+    showWelcome(saved);
+    try {
+      const siswa = await loginSiswa(saved.nis, saved.password);
+      if (!siswa) {
+        doLogout();
+        showError("Sesi berakhir, silakan login lagi.");
+      }
+    } catch (err) {
+      // Tidak ada koneksi: tetap pakai sesi tersimpan
+    }
+  })();
 </script>
 </body>
 </html>

@@ -60,6 +60,23 @@
   .msg.info { background: var(--bg); color: var(--muted); }
   .scanner { display: none; margin-top: 18px; }
   .scanner.show { display: block; }
+  details.manual { margin-top: 14px; text-align: left; font-size: 14px; color: var(--muted); }
+  details.manual summary { cursor: pointer; text-align: center; }
+  .row { display: flex; gap: 8px; margin-top: 10px; }
+  .row input { flex: 1; min-width: 0; padding: 10px 12px; font-size: 15px; }
+  .row .btn { width: auto; margin: 0; padding: 10px 16px; font-size: 15px; }
+  .list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 24px; text-align: left; }
+  .list-head h2 { margin: 0; font-size: 16px; }
+  .link-btn { background: none; border: 0; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px; }
+  .count { text-align: left; margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
+  .hadir-list {
+    list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: 10px; text-align: left;
+  }
+  .hadir-list li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .hadir-list li:last-child { border-bottom: 0; }
+  .hadir-list .meta { color: var(--muted); font-size: 12px; white-space: nowrap; text-align: right; }
+  .hadir-list .empty { color: var(--muted); justify-content: center; }
   .video-wrap {
     position: relative; width: 100%; aspect-ratio: 1 / 1; overflow: hidden;
     border-radius: 14px; background: #000;
@@ -119,6 +136,21 @@
         <button type="button" class="btn secondary" id="closeScan">Tutup kamera</button>
       </div>
       <div id="scanResult" class="msg" role="status"></div>
+
+      <details class="manual">
+        <summary>Kamera tidak mendeteksi? Input kode manual</summary>
+        <div class="row">
+          <input id="manualKode" type="text" placeholder="Ketik isi QR, mis. HADIR-2026-10-21" autocomplete="off">
+          <button type="button" class="btn" id="manualBtn">Hadir</button>
+        </div>
+      </details>
+
+      <div class="list-head">
+        <h2 id="listTitle">Hadir hari ini</h2>
+        <button type="button" class="link-btn" id="refreshList">Muat ulang</button>
+      </div>
+      <p class="count" id="listCount"></p>
+      <ol class="hadir-list" id="hadirList"></ol>
 
       <button type="button" class="btn secondary" id="logout">Keluar</button>
     </section>
@@ -187,6 +219,7 @@
       form.style.display = "none";
       document.querySelector(".brand").style.display = "none";
       welcome.classList.add("show");
+      loadDaftar();
 
       // Untuk mengarahkan ke halaman lain setelah login, aktifkan baris ini:
       // window.location.href = "dashboard.html";
@@ -203,6 +236,8 @@
     stopScan();
     currentUser = null;
     scanResult.className = "msg";
+    document.getElementById("hadirList").textContent = "";
+    document.getElementById("listCount").textContent = "";
     welcome.classList.remove("show");
     form.style.display = "";
     document.querySelector(".brand").style.display = "";
@@ -218,35 +253,61 @@
   const video = document.getElementById("video");
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const hasNative = "BarcodeDetector" in window;
+  let detector = null;
   let stream = null;
   let scanning = false;
+  let busy = false;
 
   function showResult(type, text) {
     scanResult.textContent = text;
     scanResult.className = "msg show " + type;
   }
 
+  async function rpc(name, body) {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + SUPABASE_KEY
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  }
+
   async function startScan() {
     scanResult.className = "msg";
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showResult("error", "Kamera tidak tersedia. Buka halaman lewat HTTPS atau localhost.");
+      showResult("error", "Kamera tidak tersedia. Buka halaman lewat HTTPS atau localhost, atau pakai input kode manual.");
+      return;
+    }
+    if (!hasNative && typeof jsQR === "undefined") {
+      showResult("error", "Library pemindai gagal dimuat (cek koneksi internet). Pakai input kode manual.");
       return;
     }
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false
       });
     } catch (err) {
       showResult("error", "Kamera tidak bisa dibuka. Pastikan izin kamera diberikan.");
       return;
     }
-    video.srcObject = stream;
-    await video.play();
+    // Tampilkan area video DULU, baru diputar (video yang tersembunyi bisa tidak menghasilkan frame)
     scanBtn.style.display = "none";
     scanner.classList.add("show");
-    scanStatus.textContent = "Arahkan kamera ke QR code kehadiran.";
+    scanStatus.textContent = "Memindai... arahkan kamera ke QR code.";
+    video.srcObject = stream;
+    try { await video.play(); } catch (e) { /* diabaikan, autoplay tetap jalan */ }
+    if (hasNative && !detector) {
+      try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { detector = null; }
+    }
     scanning = true;
+    busy = false;
     requestAnimationFrame(tick);
   }
 
@@ -261,54 +322,103 @@
     scanBtn.style.display = "";
   }
 
-  function tick() {
-    if (!scanning) return;
-    if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth) {
-      const scale = Math.min(1, 640 / video.videoWidth);
-      canvas.width = Math.round(video.videoWidth * scale);
-      canvas.height = Math.round(video.videoHeight * scale);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
-      if (code && code.data && code.data.trim()) {
-        handleCode(code.data.trim());
-        return;
-      }
+  async function readFrame() {
+    if (detector) {
+      const found = await detector.detect(video);
+      if (found.length && found[0].rawValue) return found[0].rawValue.trim();
+      return null;
     }
-    requestAnimationFrame(tick);
+    if (typeof jsQR === "undefined") return null;
+    const scale = Math.min(1, 1000 / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(img.data, img.width, img.height, { inversionAttempts: "attemptBoth" });
+    return code && code.data ? code.data.trim() : null;
   }
 
-  async function catatHadir(kode) {
-    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/catat_hadir", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + SUPABASE_KEY
-      },
-      body: JSON.stringify({ p_nis: currentUser.nis, p_password: currentUser.password, p_kode: kode })
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    return await res.json(); // "ok" | "sudah" | "invalid" | "kode_salah"
+  async function tick() {
+    if (!scanning) return;
+    if (!busy && video.readyState >= 2 && video.videoWidth) {
+      busy = true;
+      try {
+        const kode = await readFrame();
+        if (kode && scanning) { handleCode(kode); return; }
+      } catch (e) { /* frame gagal dibaca, coba lagi */ }
+      busy = false;
+    }
+    requestAnimationFrame(tick);
   }
 
   async function handleCode(kode) {
     stopScan();
     showResult("info", "Mencatat kehadiran...");
     try {
-      const status = await catatHadir(kode);
+      const status = await rpc("catat_hadir", { p_nis: currentUser.nis, p_password: currentUser.password, p_kode: kode });
       if (status === "ok") showResult("ok", "Hadir berhasil dicatat. Terima kasih!");
-      else if (status === "sudah") showResult("ok", "Kehadiran Anda sudah tercatat sebelumnya.");
+      else if (status === "sudah") showResult("ok", "Kehadiran Anda hari ini sudah tercatat.");
       else if (status === "kode_salah") showResult("error", "QR code tidak valid.");
       else showResult("error", "Gagal mencatat kehadiran. Silakan login ulang.");
+      loadDaftar();
     } catch (err) {
       console.error(err);
-      showResult("error", "Tidak dapat terhubung ke server. Coba scan lagi.");
+      showResult("error", "Tidak dapat terhubung ke server. Coba lagi.");
+    }
+  }
+
+  // ===== Daftar hadir hari ini =====
+  const listTitle = document.getElementById("listTitle");
+  const listCount = document.getElementById("listCount");
+  const hadirList = document.getElementById("hadirList");
+
+  function renderList(rows) {
+    hadirList.textContent = "";
+    listCount.textContent = rows.length + " siswa hadir";
+    if (!rows.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "Belum ada yang hadir hari ini.";
+      hadirList.appendChild(li);
+      return;
+    }
+    rows.forEach(function (r) {
+      const li = document.createElement("li");
+      const nama = document.createElement("span");
+      nama.textContent = r.nama;
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      const jam = new Date(r.waktu).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
+      meta.textContent = (r.kelas ? r.kelas + " · " : "") + jam;
+      li.appendChild(nama);
+      li.appendChild(meta);
+      hadirList.appendChild(li);
+    });
+  }
+
+  async function loadDaftar() {
+    if (!currentUser) return;
+    listTitle.textContent = "Hadir hari ini, " + new Date().toLocaleDateString("id-ID", {
+      timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric"
+    });
+    try {
+      renderList(await rpc("daftar_hadir", { p_nis: currentUser.nis, p_password: currentUser.password }));
+    } catch (err) {
+      console.error(err);
+      listCount.textContent = "Gagal memuat daftar hadir.";
     }
   }
 
   scanBtn.addEventListener("click", startScan);
   document.getElementById("closeScan").addEventListener("click", stopScan);
+  document.getElementById("refreshList").addEventListener("click", loadDaftar);
+  document.getElementById("manualBtn").addEventListener("click", function () {
+    const input = document.getElementById("manualKode");
+    const kode = input.value.trim();
+    if (!kode) { showResult("error", "Isi kode terlebih dahulu."); return; }
+    input.value = "";
+    handleCode(kode);
+  });
 </script>
 </body>
 </html>

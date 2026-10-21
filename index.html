@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Login Siswa – SMK Bina Insan Mandiri</title>
+<title>Absen Sholat – SMK Bina Insan Mandiri</title>
 <style>
   :root {
     --bg: #f3f5fb; --card: #ffffff; --text: #1d2433; --muted: #6b7489;
@@ -66,6 +66,7 @@
   .list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 24px; text-align: left; }
   .list-head h2 { margin: 0; font-size: 16px; }
   .link-btn { background: none; border: 0; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px; }
+  .group-title { margin: 14px 0 6px; font-size: 14px; font-weight: 600; text-align: left; }
   .count { text-align: left; margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
   .hadir-list {
     list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto;
@@ -101,7 +102,7 @@
   <main class="card">
     <div class="brand">
       <div class="logo">BIM</div>
-      <h1>Login Siswa</h1>
+      <h1>Absen Sholat</h1>
       <p class="sub">SMK Bina Insan Mandiri</p>
     </div>
 
@@ -141,7 +142,7 @@
         <button type="button" class="link-btn" id="refreshList">Muat ulang</button>
       </div>
       <p class="count" id="listCount"></p>
-      <ol class="hadir-list" id="hadirList"></ol>
+      <div id="hadirList"></div>
 
       <button type="button" class="btn secondary" id="logout">Keluar</button>
     </section>
@@ -385,10 +386,17 @@
     showResult("info", "Mencatat kehadiran...");
     try {
       const status = await rpc("catat_hadir", { p_nis: currentUser.nis, p_password: currentUser.password, p_kode: kode });
-      if (status === "ok") showResult("ok", "Hadir berhasil dicatat. Terima kasih!");
-      else if (status === "sudah") showResult("ok", "Kehadiran Anda hari ini sudah tercatat.");
-      else if (status === "kode_salah") showResult("error", "QR code tidak valid");
-      else showResult("error", "Gagal mencatat kehadiran. Silakan login ulang.");
+      if (typeof status === "string" && status.indexOf("ok:") === 0) {
+        showResult("ok", "Hadir sholat " + status.slice(3) + " berhasil dicatat. Terima kasih!");
+      } else if (typeof status === "string" && status.indexOf("sudah:") === 0) {
+        showResult("ok", "Kehadiran sholat " + status.slice(6) + " sudah tercatat.");
+      } else if (status === "diluar_waktu") {
+        showResult("error", "Di luar waktu absen sholat Zuhur dan Ashar.");
+      } else if (status === "kode_salah") {
+        showResult("error", "QR code tidak valid");
+      } else {
+        showResult("error", "Gagal mencatat kehadiran. Silakan login ulang.");
+      }
       loadDaftar();
     } catch (err) {
       console.error(err);
@@ -403,31 +411,42 @@
 
   function renderList(rows) {
     hadirList.textContent = "";
-    listCount.textContent = rows.length + " siswa hadir";
-    if (!rows.length) {
-      const li = document.createElement("li");
-      li.className = "empty";
-      li.textContent = "Belum ada yang hadir hari ini.";
-      hadirList.appendChild(li);
-      return;
-    }
-    rows.forEach(function (r) {
-      const li = document.createElement("li");
-      const nama = document.createElement("span");
-      nama.textContent = r.nama;
-      const meta = document.createElement("span");
-      meta.className = "meta";
-      const jam = new Date(r.waktu).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
-      meta.textContent = (r.kelas ? r.kelas + " · " : "") + jam;
-      li.appendChild(nama);
-      li.appendChild(meta);
-      hadirList.appendChild(li);
+    listCount.textContent = "";
+    ["Zuhur", "Ashar"].forEach(function (sholat) {
+      const items = rows.filter(function (r) { return r.sholat === sholat; });
+
+      const title = document.createElement("h3");
+      title.className = "group-title";
+      title.textContent = "Sholat " + sholat + " (" + items.length + " siswa)";
+      hadirList.appendChild(title);
+
+      const ol = document.createElement("ol");
+      ol.className = "hadir-list";
+      if (!items.length) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "Belum ada yang hadir.";
+        ol.appendChild(li);
+      }
+      items.forEach(function (r) {
+        const li = document.createElement("li");
+        const nama = document.createElement("span");
+        nama.textContent = r.nama;
+        const meta = document.createElement("span");
+        meta.className = "meta";
+        const jam = new Date(r.waktu).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
+        meta.textContent = (r.kelas ? r.kelas + " · " : "") + jam;
+        li.appendChild(nama);
+        li.appendChild(meta);
+        ol.appendChild(li);
+      });
+      hadirList.appendChild(ol);
     });
   }
 
   async function loadDaftar() {
     if (!currentUser) return;
-    listTitle.textContent = "Hadir hari ini, " + new Date().toLocaleDateString("id-ID", {
+    listTitle.textContent = "Absen sholat, " + new Date().toLocaleDateString("id-ID", {
       timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric"
     });
     try {

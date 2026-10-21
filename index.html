@@ -66,6 +66,8 @@
   .list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 24px; text-align: left; }
   .list-head h2 { margin: 0; font-size: 16px; }
   .link-btn { background: none; border: 0; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px; }
+  .sub-title { margin: 12px 0 6px; font-size: 13px; font-weight: 600; text-align: left; color: var(--ok); }
+  .sub-title.absent { color: var(--error); }
   .group-title { margin: 14px 0 6px; font-size: 14px; font-weight: 600; text-align: left; }
   .count { text-align: left; margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
   .hadir-list {
@@ -409,38 +411,61 @@
   const listCount = document.getElementById("listCount");
   const hadirList = document.getElementById("hadirList");
 
-  function renderList(rows) {
+  function buildList(items, metaFn, emptyText) {
+    const ol = document.createElement("ol");
+    ol.className = "hadir-list";
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = emptyText;
+      ol.appendChild(li);
+      return ol;
+    }
+    items.forEach(function (r) {
+      const li = document.createElement("li");
+      const nama = document.createElement("span");
+      nama.textContent = r.nama;
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = metaFn(r);
+      li.appendChild(nama);
+      li.appendChild(meta);
+      ol.appendChild(li);
+    });
+    return ol;
+  }
+
+  function addTitle(tag, cls, text) {
+    const el = document.createElement(tag);
+    el.className = cls;
+    el.textContent = text;
+    hadirList.appendChild(el);
+  }
+
+  // hadir: [{nama, kelas, sholat, waktu}], belum: [{nama, kelas, sholat}] atau null jika gagal dimuat
+  function renderList(hadir, belum) {
     hadirList.textContent = "";
     listCount.textContent = "";
     ["Zuhur", "Ashar"].forEach(function (sholat) {
-      const items = rows.filter(function (r) { return r.sholat === sholat; });
+      const yaHadir = hadir.filter(function (r) { return r.sholat === sholat; });
+      addTitle("h3", "group-title", "Sholat " + sholat);
 
-      const title = document.createElement("h3");
-      title.className = "group-title";
-      title.textContent = "Sholat " + sholat + " (" + items.length + " siswa)";
-      hadirList.appendChild(title);
-
-      const ol = document.createElement("ol");
-      ol.className = "hadir-list";
-      if (!items.length) {
-        const li = document.createElement("li");
-        li.className = "empty";
-        li.textContent = "Belum ada yang hadir.";
-        ol.appendChild(li);
-      }
-      items.forEach(function (r) {
-        const li = document.createElement("li");
-        const nama = document.createElement("span");
-        nama.textContent = r.nama;
-        const meta = document.createElement("span");
-        meta.className = "meta";
+      addTitle("h4", "sub-title", "Hadir (" + yaHadir.length + ")");
+      hadirList.appendChild(buildList(yaHadir, function (r) {
         const jam = new Date(r.waktu).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
-        meta.textContent = (r.kelas ? r.kelas + " · " : "") + jam;
-        li.appendChild(nama);
-        li.appendChild(meta);
-        ol.appendChild(li);
-      });
-      hadirList.appendChild(ol);
+        return (r.kelas ? r.kelas + " · " : "") + jam;
+      }, "Belum ada yang hadir."));
+
+      if (belum === null) {
+        addTitle("h4", "sub-title absent", "Belum scan / tidak hadir");
+        hadirList.appendChild(buildList([], function () { return ""; }, "Gagal memuat daftar ini."));
+        return;
+      }
+      const tidak = belum.filter(function (r) { return r.sholat === sholat; });
+      addTitle("h4", "sub-title absent", "Belum scan / tidak hadir (" + tidak.length + ")");
+      let kosong = "Semua siswa sudah hadir.";
+      if (!tidak.length && !yaHadir.length) kosong = "Belum waktunya absen " + sholat + ".";
+      hadirList.appendChild(buildList(tidak, function (r) { return r.kelas || ""; }, kosong));
     });
   }
 
@@ -450,7 +475,12 @@
       timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric"
     });
     try {
-      renderList(await rpc("daftar_hadir", { p_nis: currentUser.nis, p_password: currentUser.password }));
+      const body = { p_nis: currentUser.nis, p_password: currentUser.password };
+      const hasil = await Promise.all([
+        rpc("daftar_hadir", body),
+        rpc("daftar_belum_hadir", body).catch(function () { return null; })
+      ]);
+      renderList(hasil[0], hasil[1]);
     } catch (err) {
       console.error(err);
       listCount.textContent = "Gagal memuat daftar hadir.";

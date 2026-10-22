@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login Siswa – SMK Bina Insan Mandiri</title>
+<meta name="theme-color" content="#2f5bea">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5bea'/%3E%3Ctext x='32' y='41' font-size='24' font-weight='700' text-anchor='middle' fill='white' font-family='Arial'%3EBIM%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #f3f5fb; --card: #ffffff; --text: #1d2433; --muted: #6b7489;
@@ -21,7 +23,7 @@
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
     padding: 20px; background: var(--bg); color: var(--text);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   }
@@ -96,6 +98,7 @@
     display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px;
     background: var(--ok-bg); color: var(--ok); font-size: 13px; font-weight: 600;
   }
+  .help { margin: 14px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
   footer { margin-top: 20px; text-align: center; font-size: 12px; color: var(--muted); }
 </style>
 </head>
@@ -107,22 +110,23 @@
       <p class="sub">SMK Bina Insan Mandiri</p>
     </div>
 
-    <form id="loginForm" autocomplete="off" novalidate>
+    <form id="loginForm" novalidate>
       <label for="nis">NIS</label>
-      <input id="nis" name="nis" type="text" inputmode="numeric" placeholder="Masukkan NIS" required>
+      <input id="nis" name="nis" type="text" inputmode="numeric" autocomplete="username" placeholder="Masukkan NIS" required>
 
       <label for="password">Password</label>
       <div class="field">
-        <input id="password" name="password" type="password" placeholder="Masukkan password" required>
+        <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Masukkan password" required>
         <button type="button" class="toggle" id="toggle" aria-label="Tampilkan password">Lihat</button>
       </div>
 
       <div id="error" class="msg error" role="alert"></div>
       <button type="submit" class="btn">Masuk</button>
+      <p class="help">Lupa password? Hubungi wali kelas atau admin sekolah.</p>
     </form>
 
     <section id="welcome" class="welcome">
-      <h1 id="welcomeName"></h1>
+      <h1 id="welcomeName" tabindex="-1"></h1>
       <span class="badge" id="welcomeClass"></span>
       <p class="sub" style="margin-top:14px">Login berhasil.</p>
 
@@ -133,6 +137,7 @@
           <div class="frame"></div>
         </div>
         <p class="sub" id="scanStatus">Arahkan kamera ke QR code kehadiran.</p>
+        <button type="button" class="btn secondary" id="torchBtn" style="display:none">Nyalakan senter</button>
         <button type="button" class="btn secondary" id="closeScan">Tutup kamera</button>
       </div>
       <div id="scanResult" class="msg" role="status"></div>
@@ -140,7 +145,7 @@
       <details class="manual">
         <summary>Kamera tidak mendeteksi? Input kode manual</summary>
         <div class="row">
-          <input id="manualKode" type="text" placeholder="Ketik isi QR, mis. HADIR-2026-10-21" autocomplete="off">
+          <input id="manualKode" type="text" aria-label="Kode kehadiran" placeholder="Ketik kode kehadiran" autocomplete="off" autocapitalize="off" spellcheck="false">
           <button type="button" class="btn" id="manualBtn">Hadir</button>
         </div>
       </details>
@@ -158,7 +163,8 @@
     <footer>&copy; SMK Bina Insan Mandiri</footer>
   </main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<!-- TODO: tambahkan atribut integrity="sha384-..." (SRI) pada script di bawah -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
   // Konfigurasi Supabase (anon key memang boleh ada di sisi klien)
   const SUPABASE_URL = "https://tldolhztnufvgbanigba.supabase.co";
@@ -185,17 +191,7 @@
   });
 
   async function loginSiswa(nis, password) {
-    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/login_siswa", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + SUPABASE_KEY
-      },
-      body: JSON.stringify({ p_nis: nis, p_password: password })
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const rows = await res.json();
+    const rows = await rpc("login_siswa", { p_nis: nis, p_password: password });
     return rows.length ? rows[0] : null;
   }
 
@@ -219,7 +215,9 @@
       form.style.display = "none";
       document.querySelector(".brand").style.display = "none";
       welcome.classList.add("show");
+      document.getElementById("welcomeName").focus();
       loadDaftar();
+      startSession();
 
       // Untuk mengarahkan ke halaman lain setelah login, aktifkan baris ini:
       // window.location.href = "dashboard.html";
@@ -232,8 +230,9 @@
     }
   });
 
-  document.getElementById("logout").addEventListener("click", function () {
+  function doLogout(notice) {
     stopScan();
+    endSession();
     currentUser = null;
     scanResult.className = "msg";
     document.getElementById("hadirList").textContent = "";
@@ -242,11 +241,35 @@
     form.style.display = "";
     document.querySelector(".brand").style.display = "";
     form.reset();
+    if (notice) showError(notice); else errorBox.classList.remove("show");
     nisInput.focus();
-  });
+  }
+  document.getElementById("logout").addEventListener("click", function () { doLogout(); });
+
+  // Sesi: auto-logout bila tidak aktif + muat ulang daftar berkala
+  const IDLE_MS = 10 * 60 * 1000, REFRESH_MS = 30 * 1000;
+  const ACTIVITY = ["click", "keydown", "touchstart"];
+  let idleTimer = null, refreshTimer = null;
+  function resetIdle() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () { doLogout("Sesi berakhir karena tidak aktif. Silakan login ulang."); }, IDLE_MS);
+  }
+  function startSession() {
+    resetIdle();
+    ACTIVITY.forEach(function (ev) { document.addEventListener(ev, resetIdle, { passive: true }); });
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(function () { if (!document.hidden) loadDaftar(); }, REFRESH_MS);
+  }
+  function endSession() {
+    clearTimeout(idleTimer);
+    clearInterval(refreshTimer);
+    ACTIVITY.forEach(function (ev) { document.removeEventListener(ev, resetIdle); });
+  }
 
   // ===== Scan QR Hadir =====
   const scanBtn = document.getElementById("scanBtn");
+  const manualBtn = document.getElementById("manualBtn");
+  const torchBtn = document.getElementById("torchBtn");
   const scanner = document.getElementById("scanner");
   const scanStatus = document.getElementById("scanStatus");
   const scanResult = document.getElementById("scanResult");
@@ -265,17 +288,24 @@
   }
 
   async function rpc(name, body) {
-    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + SUPABASE_KEY
-      },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    return await res.json();
+    const ctrl = new AbortController();
+    const timer = setTimeout(function () { ctrl.abort(); }, 15000);
+    try {
+      const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + SUPABASE_KEY
+        },
+        body: JSON.stringify(body),
+        signal: ctrl.signal
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async function startScan() {
@@ -306,10 +336,29 @@
     if (hasNative && !detector) {
       try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { detector = null; }
     }
+    setupTorch();
     scanning = true;
     busy = false;
     requestAnimationFrame(tick);
   }
+
+  let torchOn = false;
+  function setupTorch() {
+    torchOn = false;
+    torchBtn.textContent = "Nyalakan senter";
+    const track = stream && stream.getVideoTracks()[0];
+    const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+    torchBtn.style.display = caps.torch ? "" : "none";
+  }
+  torchBtn.addEventListener("click", async function () {
+    const track = stream && stream.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+      torchOn = !torchOn;
+      torchBtn.textContent = torchOn ? "Matikan senter" : "Nyalakan senter";
+    } catch (e) { /* senter tidak didukung */ }
+  });
 
   function stopScan() {
     scanning = false;
@@ -318,6 +367,7 @@
       stream = null;
     }
     video.srcObject = null;
+    torchBtn.style.display = "none";
     scanner.classList.remove("show");
     scanBtn.style.display = "";
   }
@@ -351,12 +401,16 @@
     requestAnimationFrame(tick);
   }
 
+  let submitting = false;
   async function handleCode(kode) {
+    if (submitting) return;
+    submitting = true;
+    manualBtn.disabled = true;
     stopScan();
     showResult("info", "Mencatat kehadiran...");
     try {
       const status = await rpc("catat_hadir", { p_nis: currentUser.nis, p_password: currentUser.password, p_kode: kode });
-      if (status === "ok") showResult("ok", "Hadir berhasil dicatat. Terima kasih!");
+      if (status === "ok") { showResult("ok", "Hadir berhasil dicatat. Terima kasih!"); if (navigator.vibrate) navigator.vibrate(200); }
       else if (status === "sudah") showResult("ok", "Kehadiran Anda hari ini sudah tercatat.");
       else if (status === "kode_salah") showResult("error", "QR code tidak valid.");
       else showResult("error", "Gagal mencatat kehadiran. Silakan login ulang.");
@@ -364,6 +418,9 @@
     } catch (err) {
       console.error(err);
       showResult("error", "Tidak dapat terhubung ke server. Coba lagi.");
+    } finally {
+      submitting = false;
+      manualBtn.disabled = false;
     }
   }
 
@@ -401,8 +458,10 @@
     listTitle.textContent = "Hadir hari ini, " + new Date().toLocaleDateString("id-ID", {
       timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric"
     });
+    if (!hadirList.children.length) listCount.textContent = "Memuat daftar...";
     try {
-      renderList(await rpc("daftar_hadir", { p_nis: currentUser.nis, p_password: currentUser.password }));
+      const rows = await rpc("daftar_hadir", { p_nis: currentUser.nis, p_password: currentUser.password });
+      if (currentUser) renderList(rows);
     } catch (err) {
       console.error(err);
       listCount.textContent = "Gagal memuat daftar hadir.";

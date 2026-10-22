@@ -410,12 +410,15 @@
     showResult("info", "Mencatat kehadiran...");
     try {
       const status = await rpc("catat_hadir", { p_nis: currentUser.nis, p_password: currentUser.password, p_kode: kode });
-      if (status === "ok") { showResult("ok", "Hadir berhasil dicatat. Terima kasih!"); if (navigator.vibrate) navigator.vibrate(200); }
-      else if (status === "sudah") showResult("ok", "Kehadiran Anda hari ini sudah tercatat.");
-      else if (status === "kode_salah") showResult("error", "QR code tidak valid.");
-      else if (status === "duha") { showResult("ok", "Shalat Dhuha berhasil dicatat. Semoga berkah!"); if (navigator.vibrate) navigator.vibrate(200); }
-      else if (status === "duha_sudah") showResult("ok", "Shalat Dhuha Anda hari ini sudah tercatat.");
-      else showResult("error", "Gagal mencatat kehadiran (kode server: " + (typeof status === "string" ? status : JSON.stringify(status)) + "). Silakan login ulang.");
+      const parts = String(status).split(":");
+      const st = parts[0];
+      const label = parts[1] ? " shalat " + parts[1] : "";
+      if (st === "ok") { showResult("ok", "Kehadiran" + label + " berhasil dicatat. Terima kasih!"); if (navigator.vibrate) navigator.vibrate(200); }
+      else if (st === "sudah") showResult("ok", "Kehadiran" + label + " hari ini sudah tercatat.");
+      else if (st === "kode_salah") showResult("error", "QR code tidak valid.");
+      else if (st === "diluar_waktu") showResult("error", "Di luar waktu absen. Absen dibuka untuk Dhuha, Zuhur, dan Ashar.");
+      else if (st === "invalid") showResult("error", "Login tidak valid. Silakan login ulang.");
+      else showResult("error", "Gagal mencatat kehadiran (kode server: " + (typeof status === "string" ? status : JSON.stringify(status)) + ").");
       loadDaftar();
     } catch (err) {
       console.error(err);

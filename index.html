@@ -413,7 +413,9 @@
       if (status === "ok") { showResult("ok", "Hadir berhasil dicatat. Terima kasih!"); if (navigator.vibrate) navigator.vibrate(200); }
       else if (status === "sudah") showResult("ok", "Kehadiran Anda hari ini sudah tercatat.");
       else if (status === "kode_salah") showResult("error", "QR code tidak valid.");
-      else showResult("error", "Gagal mencatat kehadiran. Silakan login ulang.");
+      else if (status === "duha") { showResult("ok", "Shalat Dhuha berhasil dicatat. Semoga berkah!"); if (navigator.vibrate) navigator.vibrate(200); }
+      else if (status === "duha_sudah") showResult("ok", "Shalat Dhuha Anda hari ini sudah tercatat.");
+      else showResult("error", "Gagal mencatat kehadiran (kode server: " + (typeof status === "string" ? status : JSON.stringify(status)) + "). Silakan login ulang.");
       loadDaftar();
     } catch (err) {
       console.error(err);

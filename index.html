@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Absen Sholat – SMK Bina Insan Mandiri</title>
+<title>Login Siswa – SMK Bina Insan Mandiri</title>
+<meta name="theme-color" content="#2f5bea">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5bea'/%3E%3Ctext x='32' y='41' font-size='24' font-weight='700' text-anchor='middle' fill='white' font-family='Arial'%3EBIM%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #f3f5fb; --card: #ffffff; --text: #1d2433; --muted: #6b7489;
@@ -21,7 +23,7 @@
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
     padding: 20px; background: var(--bg); color: var(--text);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   }
@@ -60,15 +62,14 @@
   .msg.info { background: var(--bg); color: var(--muted); }
   .scanner { display: none; margin-top: 18px; }
   .scanner.show { display: block; }
+  details.manual { margin-top: 14px; text-align: left; font-size: 14px; color: var(--muted); }
+  details.manual summary { cursor: pointer; text-align: center; }
   .row { display: flex; gap: 8px; margin-top: 10px; }
   .row input { flex: 1; min-width: 0; padding: 10px 12px; font-size: 15px; }
   .row .btn { width: auto; margin: 0; padding: 10px 16px; font-size: 15px; }
   .list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 24px; text-align: left; }
   .list-head h2 { margin: 0; font-size: 16px; }
   .link-btn { background: none; border: 0; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px; }
-  .sub-title { margin: 12px 0 6px; font-size: 13px; font-weight: 600; text-align: left; color: var(--ok); }
-  .sub-title.absent { color: var(--error); }
-  .group-title { margin: 14px 0 6px; font-size: 14px; font-weight: 600; text-align: left; }
   .count { text-align: left; margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
   .hadir-list {
     list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto;
@@ -97,6 +98,7 @@
     display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px;
     background: var(--ok-bg); color: var(--ok); font-size: 13px; font-weight: 600;
   }
+  .help { margin: 14px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
   footer { margin-top: 20px; text-align: center; font-size: 12px; color: var(--muted); }
 </style>
 </head>
@@ -104,26 +106,27 @@
   <main class="card">
     <div class="brand">
       <div class="logo">BIM</div>
-      <h1>Absen Sholat</h1>
+      <h1>Login Siswa</h1>
       <p class="sub">SMK Bina Insan Mandiri</p>
     </div>
 
-    <form id="loginForm" autocomplete="off" novalidate>
+    <form id="loginForm" novalidate>
       <label for="nis">NIS</label>
-      <input id="nis" name="nis" type="text" inputmode="numeric" placeholder="Masukkan NIS" required>
+      <input id="nis" name="nis" type="text" inputmode="numeric" autocomplete="username" placeholder="Masukkan NIS" required>
 
       <label for="password">Password</label>
       <div class="field">
-        <input id="password" name="password" type="password" placeholder="Masukkan password" required>
+        <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Masukkan password" required>
         <button type="button" class="toggle" id="toggle" aria-label="Tampilkan password">Lihat</button>
       </div>
 
       <div id="error" class="msg error" role="alert"></div>
       <button type="submit" class="btn">Masuk</button>
+      <p class="help">Lupa password? Hubungi wali kelas atau admin sekolah.</p>
     </form>
 
     <section id="welcome" class="welcome">
-      <h1 id="welcomeName"></h1>
+      <h1 id="welcomeName" tabindex="-1"></h1>
       <span class="badge" id="welcomeClass"></span>
       <p class="sub" style="margin-top:14px">Login berhasil.</p>
 
@@ -134,17 +137,25 @@
           <div class="frame"></div>
         </div>
         <p class="sub" id="scanStatus">Arahkan kamera ke QR code kehadiran.</p>
+        <button type="button" class="btn secondary" id="torchBtn" style="display:none">Nyalakan senter</button>
         <button type="button" class="btn secondary" id="closeScan">Tutup kamera</button>
       </div>
       <div id="scanResult" class="msg" role="status"></div>
 
+      <details class="manual">
+        <summary>Kamera tidak mendeteksi? Input kode manual</summary>
+        <div class="row">
+          <input id="manualKode" type="text" aria-label="Kode kehadiran" placeholder="Ketik kode kehadiran" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button type="button" class="btn" id="manualBtn">Hadir</button>
+        </div>
+      </details>
 
       <div class="list-head">
         <h2 id="listTitle">Hadir hari ini</h2>
         <button type="button" class="link-btn" id="refreshList">Muat ulang</button>
       </div>
       <p class="count" id="listCount"></p>
-      <div id="hadirList"></div>
+      <ol class="hadir-list" id="hadirList"></ol>
 
       <button type="button" class="btn secondary" id="logout">Keluar</button>
     </section>
@@ -152,7 +163,8 @@
     <footer>&copy; SMK Bina Insan Mandiri</footer>
   </main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<!-- TODO: tambahkan atribut integrity="sha384-..." (SRI) pada script di bawah -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
   // Konfigurasi Supabase (anon key memang boleh ada di sisi klien)
   const SUPABASE_URL = "https://tldolhztnufvgbanigba.supabase.co";
@@ -165,42 +177,6 @@
   const welcome = document.getElementById("welcome");
   const submitBtn = form.querySelector(".btn");
   let currentUser = null; // { nis, password } selama sesi login
-
-  // ===== Sesi login tersimpan (bertahan saat refresh) =====
-  const SESSION_KEY = "sesi_siswa_bim";
-  const SESSION_DAYS = 7;
-
-  function saveSession(user) {
-    try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({
-        nis: user.nis, password: user.password, nama: user.nama, kelas: user.kelas,
-        exp: Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000
-      }));
-    } catch (e) { /* penyimpanan tidak tersedia, abaikan */ }
-  }
-
-  function loadSession() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(SESSION_KEY));
-      if (saved && saved.nis && saved.password && saved.exp > Date.now()) return saved;
-      localStorage.removeItem(SESSION_KEY);
-    } catch (e) { /* abaikan */ }
-    return null;
-  }
-
-  function clearSession() {
-    try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* abaikan */ }
-  }
-
-  function showWelcome(user) {
-    currentUser = { nis: user.nis, password: user.password };
-    document.getElementById("welcomeName").textContent = "Selamat datang, " + user.nama + "!";
-    document.getElementById("welcomeClass").textContent = user.kelas ? "Kelas " + user.kelas : "NIS " + user.nis;
-    form.style.display = "none";
-    document.querySelector(".brand").style.display = "none";
-    welcome.classList.add("show");
-    loadDaftar();
-  }
 
   function showError(text) {
     errorBox.textContent = text;
@@ -215,17 +191,7 @@
   });
 
   async function loginSiswa(nis, password) {
-    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/login_siswa", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + SUPABASE_KEY
-      },
-      body: JSON.stringify({ p_nis: nis, p_password: password })
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const rows = await res.json();
+    const rows = await rpc("login_siswa", { p_nis: nis, p_password: password });
     return rows.length ? rows[0] : null;
   }
 
@@ -243,9 +209,15 @@
       const siswa = await loginSiswa(nis, pw);
       if (!siswa) { showError("NIS atau password salah."); return; }
 
-      const user = { nis: siswa.nis, password: pw, nama: siswa.nama, kelas: siswa.kelas };
-      saveSession(user);
-      showWelcome(user);
+      currentUser = { nis: siswa.nis, password: pw };
+      document.getElementById("welcomeName").textContent = "Selamat datang, " + siswa.nama + "!";
+      document.getElementById("welcomeClass").textContent = siswa.kelas ? "Kelas " + siswa.kelas : "NIS " + siswa.nis;
+      form.style.display = "none";
+      document.querySelector(".brand").style.display = "none";
+      welcome.classList.add("show");
+      document.getElementById("welcomeName").focus();
+      loadDaftar();
+      startSession();
 
       // Untuk mengarahkan ke halaman lain setelah login, aktifkan baris ini:
       // window.location.href = "dashboard.html";
@@ -258,9 +230,9 @@
     }
   });
 
-  function doLogout() {
-    clearSession();
+  function doLogout(notice) {
     stopScan();
+    endSession();
     currentUser = null;
     scanResult.className = "msg";
     document.getElementById("hadirList").textContent = "";
@@ -269,12 +241,35 @@
     form.style.display = "";
     document.querySelector(".brand").style.display = "";
     form.reset();
+    if (notice) showError(notice); else errorBox.classList.remove("show");
     nisInput.focus();
   }
-  document.getElementById("logout").addEventListener("click", doLogout);
+  document.getElementById("logout").addEventListener("click", function () { doLogout(); });
+
+  // Sesi: auto-logout bila tidak aktif + muat ulang daftar berkala
+  const IDLE_MS = 10 * 60 * 1000, REFRESH_MS = 30 * 1000;
+  const ACTIVITY = ["click", "keydown", "touchstart"];
+  let idleTimer = null, refreshTimer = null;
+  function resetIdle() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () { doLogout("Sesi berakhir karena tidak aktif. Silakan login ulang."); }, IDLE_MS);
+  }
+  function startSession() {
+    resetIdle();
+    ACTIVITY.forEach(function (ev) { document.addEventListener(ev, resetIdle, { passive: true }); });
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(function () { if (!document.hidden) loadDaftar(); }, REFRESH_MS);
+  }
+  function endSession() {
+    clearTimeout(idleTimer);
+    clearInterval(refreshTimer);
+    ACTIVITY.forEach(function (ev) { document.removeEventListener(ev, resetIdle); });
+  }
 
   // ===== Scan QR Hadir =====
   const scanBtn = document.getElementById("scanBtn");
+  const manualBtn = document.getElementById("manualBtn");
+  const torchBtn = document.getElementById("torchBtn");
   const scanner = document.getElementById("scanner");
   const scanStatus = document.getElementById("scanStatus");
   const scanResult = document.getElementById("scanResult");
@@ -293,27 +288,34 @@
   }
 
   async function rpc(name, body) {
-    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_KEY,
-        "Authorization": "Bearer " + SUPABASE_KEY
-      },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    return await res.json();
+    const ctrl = new AbortController();
+    const timer = setTimeout(function () { ctrl.abort(); }, 15000);
+    try {
+      const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + SUPABASE_KEY
+        },
+        body: JSON.stringify(body),
+        signal: ctrl.signal
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async function startScan() {
     scanResult.className = "msg";
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showResult("error", "Kamera tidak tersedia. Buka halaman lewat HTTPS atau localhost.");
+      showResult("error", "Kamera tidak tersedia. Buka halaman lewat HTTPS atau localhost, atau pakai input kode manual.");
       return;
     }
     if (!hasNative && typeof jsQR === "undefined") {
-      showResult("error", "Library pemindai gagal dimuat (cek koneksi internet).");
+      showResult("error", "Library pemindai gagal dimuat (cek koneksi internet). Pakai input kode manual.");
       return;
     }
     try {
@@ -334,10 +336,29 @@
     if (hasNative && !detector) {
       try { detector = new BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { detector = null; }
     }
+    setupTorch();
     scanning = true;
     busy = false;
     requestAnimationFrame(tick);
   }
+
+  let torchOn = false;
+  function setupTorch() {
+    torchOn = false;
+    torchBtn.textContent = "Nyalakan senter";
+    const track = stream && stream.getVideoTracks()[0];
+    const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+    torchBtn.style.display = caps.torch ? "" : "none";
+  }
+  torchBtn.addEventListener("click", async function () {
+    const track = stream && stream.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+      torchOn = !torchOn;
+      torchBtn.textContent = torchOn ? "Matikan senter" : "Nyalakan senter";
+    } catch (e) { /* senter tidak didukung */ }
+  });
 
   function stopScan() {
     scanning = false;
@@ -346,6 +367,7 @@
       stream = null;
     }
     video.srcObject = null;
+    torchBtn.style.display = "none";
     scanner.classList.remove("show");
     scanBtn.style.display = "";
   }
@@ -379,30 +401,26 @@
     requestAnimationFrame(tick);
   }
 
+  let submitting = false;
   async function handleCode(kode) {
+    if (submitting) return;
+    submitting = true;
+    manualBtn.disabled = true;
     stopScan();
-    if (kode.trim().toLowerCase() !== "hadir") {
-      showResult("error", "QR code tidak valid");
-      return;
-    }
     showResult("info", "Mencatat kehadiran...");
     try {
       const status = await rpc("catat_hadir", { p_nis: currentUser.nis, p_password: currentUser.password, p_kode: kode });
-      if (typeof status === "string" && status.indexOf("ok:") === 0) {
-        showResult("ok", "Hadir sholat " + status.slice(3) + " berhasil dicatat. Terima kasih!");
-      } else if (typeof status === "string" && status.indexOf("sudah:") === 0) {
-        showResult("ok", "Kehadiran sholat " + status.slice(6) + " sudah tercatat.");
-      } else if (status === "diluar_waktu") {
-        showResult("error", "Di luar waktu absen sholat Zuhur dan Ashar.");
-      } else if (status === "kode_salah") {
-        showResult("error", "QR code tidak valid");
-      } else {
-        showResult("error", "Gagal mencatat kehadiran. Silakan login ulang.");
-      }
+      if (status === "ok") { showResult("ok", "Hadir berhasil dicatat. Terima kasih!"); if (navigator.vibrate) navigator.vibrate(200); }
+      else if (status === "sudah") showResult("ok", "Kehadiran Anda hari ini sudah tercatat.");
+      else if (status === "kode_salah") showResult("error", "QR code tidak valid.");
+      else showResult("error", "Gagal mencatat kehadiran. Silakan login ulang.");
       loadDaftar();
     } catch (err) {
       console.error(err);
       showResult("error", "Tidak dapat terhubung ke server. Coba lagi.");
+    } finally {
+      submitting = false;
+      manualBtn.disabled = false;
     }
   }
 
@@ -411,76 +429,39 @@
   const listCount = document.getElementById("listCount");
   const hadirList = document.getElementById("hadirList");
 
-  function buildList(items, metaFn, emptyText) {
-    const ol = document.createElement("ol");
-    ol.className = "hadir-list";
-    if (!items.length) {
+  function renderList(rows) {
+    hadirList.textContent = "";
+    listCount.textContent = rows.length + " siswa hadir";
+    if (!rows.length) {
       const li = document.createElement("li");
       li.className = "empty";
-      li.textContent = emptyText;
-      ol.appendChild(li);
-      return ol;
+      li.textContent = "Belum ada yang hadir hari ini.";
+      hadirList.appendChild(li);
+      return;
     }
-    items.forEach(function (r) {
+    rows.forEach(function (r) {
       const li = document.createElement("li");
       const nama = document.createElement("span");
       nama.textContent = r.nama;
       const meta = document.createElement("span");
       meta.className = "meta";
-      meta.textContent = metaFn(r);
+      const jam = new Date(r.waktu).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
+      meta.textContent = (r.kelas ? r.kelas + " · " : "") + jam;
       li.appendChild(nama);
       li.appendChild(meta);
-      ol.appendChild(li);
-    });
-    return ol;
-  }
-
-  function addTitle(tag, cls, text) {
-    const el = document.createElement(tag);
-    el.className = cls;
-    el.textContent = text;
-    hadirList.appendChild(el);
-  }
-
-  // hadir: [{nama, kelas, sholat, waktu}], belum: [{nama, kelas, sholat}] atau null jika gagal dimuat
-  function renderList(hadir, belum) {
-    hadirList.textContent = "";
-    listCount.textContent = "";
-    ["Zuhur", "Ashar"].forEach(function (sholat) {
-      const yaHadir = hadir.filter(function (r) { return r.sholat === sholat; });
-      addTitle("h3", "group-title", "Sholat " + sholat);
-
-      addTitle("h4", "sub-title", "Hadir (" + yaHadir.length + ")");
-      hadirList.appendChild(buildList(yaHadir, function (r) {
-        const jam = new Date(r.waktu).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
-        return (r.kelas ? r.kelas + " · " : "") + jam;
-      }, "Belum ada yang hadir."));
-
-      if (belum === null) {
-        addTitle("h4", "sub-title absent", "Belum scan / tidak hadir");
-        hadirList.appendChild(buildList([], function () { return ""; }, "Gagal memuat daftar ini."));
-        return;
-      }
-      const tidak = belum.filter(function (r) { return r.sholat === sholat; });
-      addTitle("h4", "sub-title absent", "Belum scan / tidak hadir (" + tidak.length + ")");
-      let kosong = "Semua siswa sudah hadir.";
-      if (!tidak.length && !yaHadir.length) kosong = "Belum waktunya absen " + sholat + ".";
-      hadirList.appendChild(buildList(tidak, function (r) { return r.kelas || ""; }, kosong));
+      hadirList.appendChild(li);
     });
   }
 
   async function loadDaftar() {
     if (!currentUser) return;
-    listTitle.textContent = "Absen sholat, " + new Date().toLocaleDateString("id-ID", {
+    listTitle.textContent = "Hadir hari ini, " + new Date().toLocaleDateString("id-ID", {
       timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric"
     });
+    if (!hadirList.children.length) listCount.textContent = "Memuat daftar...";
     try {
-      const body = { p_nis: currentUser.nis, p_password: currentUser.password };
-      const hasil = await Promise.all([
-        rpc("daftar_hadir", body),
-        rpc("daftar_belum_hadir", body).catch(function () { return null; })
-      ]);
-      renderList(hasil[0], hasil[1]);
+      const rows = await rpc("daftar_hadir", { p_nis: currentUser.nis, p_password: currentUser.password });
+      if (currentUser) renderList(rows);
     } catch (err) {
       console.error(err);
       listCount.textContent = "Gagal memuat daftar hadir.";
@@ -490,22 +471,13 @@
   scanBtn.addEventListener("click", startScan);
   document.getElementById("closeScan").addEventListener("click", stopScan);
   document.getElementById("refreshList").addEventListener("click", loadDaftar);
-
-  // ===== Pulihkan sesi saat halaman dibuka / di-refresh =====
-  (async function restoreSession() {
-    const saved = loadSession();
-    if (!saved) return;
-    showWelcome(saved);
-    try {
-      const siswa = await loginSiswa(saved.nis, saved.password);
-      if (!siswa) {
-        doLogout();
-        showError("Sesi berakhir, silakan login lagi.");
-      }
-    } catch (err) {
-      // Tidak ada koneksi: tetap pakai sesi tersimpan
-    }
-  })();
+  document.getElementById("manualBtn").addEventListener("click", function () {
+    const input = document.getElementById("manualKode");
+    const kode = input.value.trim();
+    if (!kode) { showResult("error", "Isi kode terlebih dahulu."); return; }
+    input.value = "";
+    handleCode(kode);
+  });
 </script>
 </body>
 </html>

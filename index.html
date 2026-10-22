@@ -98,6 +98,8 @@
     display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px;
     background: var(--ok-bg); color: var(--ok); font-size: 13px; font-weight: 600;
   }
+  .waktu { margin: 14px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; background: var(--ok-bg); color: var(--ok); }
+  .waktu.off { background: var(--bg); color: var(--muted); }
   .help { margin: 14px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
   footer { margin-top: 20px; text-align: center; font-size: 12px; color: var(--muted); }
 </style>
@@ -130,6 +132,7 @@
       <span class="badge" id="welcomeClass"></span>
       <p class="sub" style="margin-top:14px">Login berhasil.</p>
 
+      <p class="waktu off" id="waktuInfo" role="status"></p>
       <button type="button" class="btn" id="scanBtn">Scan QR Hadir</button>
       <div id="scanner" class="scanner">
         <div class="video-wrap">
@@ -195,6 +198,62 @@
     return rows.length ? rows[0] : null;
   }
 
+  // ===== Sesi tersimpan (tetap login setelah refresh) =====
+  const SESI_KEY = "bim_sesi", SESI_MS = 12 * 60 * 60 * 1000;
+  function saveSession(siswa, pw) {
+    try {
+      localStorage.setItem(SESI_KEY, JSON.stringify({ nis: siswa.nis, nama: siswa.nama, kelas: siswa.kelas, pw: pw, exp: Date.now() + SESI_MS }));
+    } catch (e) { /* penyimpanan diblokir, sesi hanya berlaku di halaman ini */ }
+  }
+  function clearSaved() { try { localStorage.removeItem(SESI_KEY); } catch (e) {} }
+
+  function enterApp(siswa, pw) {
+    currentUser = { nis: siswa.nis, password: pw };
+    document.getElementById("welcomeName").textContent = "Selamat datang, " + siswa.nama + "!";
+    document.getElementById("welcomeClass").textContent = siswa.kelas ? "Kelas " + siswa.kelas : "NIS " + siswa.nis;
+    form.style.display = "none";
+    document.querySelector(".brand").style.display = "none";
+    welcome.classList.add("show");
+    document.getElementById("welcomeName").focus();
+    updateWaktu();
+    loadDaftar();
+    startSession();
+  }
+
+  function restoreSession() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(SESI_KEY)); } catch (e) {}
+    if (!saved || !saved.nis || !saved.pw || !(saved.exp > Date.now())) { clearSaved(); return; }
+    enterApp({ nis: saved.nis, nama: saved.nama, kelas: saved.kelas }, saved.pw);
+    loginSiswa(saved.nis, saved.pw).then(function (s) {
+      if (!s && currentUser) doLogout("Sesi tidak valid. Silakan login ulang.");
+    }).catch(function () { /* offline: biarkan tetap masuk */ });
+  }
+
+  // ===== Info waktu shalat (sama dengan aturan di server, zona Asia/Jakarta) =====
+  function waktuSholat() {
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
+    const h = parseInt(parts.find(function (p) { return p.type === "hour"; }).value, 10) % 24;
+    const m = parseInt(parts.find(function (p) { return p.type === "minute"; }).value, 10);
+    const t = h * 60 + m;
+    if (t >= 360 && t < 660) return { nama: "Dhuha", jam: "06:00–11:00" };
+    if (t >= 660 && t < 900) return { nama: "Zuhur", jam: "11:00–15:00" };
+    if (t >= 900 && t < 1080) return { nama: "Ashar", jam: "15:00–18:00" };
+    return null;
+  }
+  function updateWaktu() {
+    const w = waktuSholat(), box = document.getElementById("waktuInfo");
+    if (w) {
+      box.textContent = "Sekarang waktu shalat " + w.nama + " (" + w.jam + " WIB). Scan QR akan dicatat sebagai shalat " + w.nama + ".";
+      box.className = "waktu";
+      scanBtn.textContent = "Scan QR Absen " + w.nama;
+    } else {
+      box.textContent = "Saat ini di luar waktu absen. Absen dibuka pukul 06:00–18:00 WIB (Dhuha, Zuhur, Ashar).";
+      box.className = "waktu off";
+      scanBtn.textContent = "Scan QR Hadir";
+    }
+  }
+
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
     errorBox.classList.remove("show");
@@ -209,15 +268,8 @@
       const siswa = await loginSiswa(nis, pw);
       if (!siswa) { showError("NIS atau password salah."); return; }
 
-      currentUser = { nis: siswa.nis, password: pw };
-      document.getElementById("welcomeName").textContent = "Selamat datang, " + siswa.nama + "!";
-      document.getElementById("welcomeClass").textContent = siswa.kelas ? "Kelas " + siswa.kelas : "NIS " + siswa.nis;
-      form.style.display = "none";
-      document.querySelector(".brand").style.display = "none";
-      welcome.classList.add("show");
-      document.getElementById("welcomeName").focus();
-      loadDaftar();
-      startSession();
+      enterApp(siswa, pw);
+      saveSession(siswa, pw);
 
       // Untuk mengarahkan ke halaman lain setelah login, aktifkan baris ini:
       // window.location.href = "dashboard.html";
@@ -233,6 +285,7 @@
   function doLogout(notice) {
     stopScan();
     endSession();
+    clearSaved();
     currentUser = null;
     scanResult.className = "msg";
     document.getElementById("hadirList").textContent = "";
@@ -247,7 +300,7 @@
   document.getElementById("logout").addEventListener("click", function () { doLogout(); });
 
   // Sesi: auto-logout bila tidak aktif + muat ulang daftar berkala
-  const IDLE_MS = 10 * 60 * 1000, REFRESH_MS = 30 * 1000;
+  const IDLE_MS = 60 * 60 * 1000, REFRESH_MS = 30 * 1000;
   const ACTIVITY = ["click", "keydown", "touchstart"];
   let idleTimer = null, refreshTimer = null;
   function resetIdle() {
@@ -258,7 +311,7 @@
     resetIdle();
     ACTIVITY.forEach(function (ev) { document.addEventListener(ev, resetIdle, { passive: true }); });
     clearInterval(refreshTimer);
-    refreshTimer = setInterval(function () { if (!document.hidden) loadDaftar(); }, REFRESH_MS);
+    refreshTimer = setInterval(function () { updateWaktu(); if (!document.hidden) loadDaftar(); }, REFRESH_MS);
   }
   function endSession() {
     clearTimeout(idleTimer);
@@ -483,6 +536,8 @@
     input.value = "";
     handleCode(kode);
   });
+
+  restoreSession();
 </script>
 </body>
 </html>

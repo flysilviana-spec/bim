@@ -11,14 +11,14 @@
 <script>
 const U='https://tldolhztnufvgbanigba.supabase.co/rest/v1',
 K='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsZG9saHp0bnVmdmdiYW5pZ2JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1NTc4NTksImV4cCI6MjEwODEzMzg1OX0.7nPP7tV8bhLZzlMcaSFrXWuyq4n72kTDSwcEyhc55LU',
-T='https://bim-rose.vercel.app/?masuk=true',
+T='https://forms.gle/vwEJAnTsHF9HGxqq6',
 H={apikey:K,Authorization:'Bearer '+K,'Content-Type':'application/json',Prefer:'return=representation'};
 (async()=>{
 try{
 const r=await fetch(U+'/status?id=eq.1',{method:'PATCH',headers:H,body:JSON.stringify({aktif:true})});
 const d=await r.json();
 if(!r.ok||!d.length)throw new Error(r.ok?'baris id=1 tidak ada / diblokir RLS':JSON.stringify(d));
-fetch(U+'/pengunjung',{method:'POST',headers:H,body:JSON.stringify({sumber:'qr'})}).catch(()=>{});
+await fetch(U+'/pengunjung',{method:'POST',headers:H,keepalive:true,body:JSON.stringify({sumber:'qr'})}).catch(()=>{});
 location.replace(T);
 }catch(e){document.getElementById('s').textContent='Error: '+e.message}
 })();

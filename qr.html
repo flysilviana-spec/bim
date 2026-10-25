@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Masuk</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}</style>
+</head>
+<body>
+<p id="s">Memproses...</p>
+<script>
+const U='https://tldolhztnufvgbanigba.supabase.co/rest/v1',
+K='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsZG9saHp0bnVmdmdiYW5pZ2JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1NTc4NTksImV4cCI6MjEwODEzMzg1OX0.7nPP7tV8bhLZzlMcaSFrXWuyq4n72kTDSwcEyhc55LU',
+T='https://bim-rose.vercel.app/?masuk=true',
+H={apikey:K,Authorization:'Bearer '+K,'Content-Type':'application/json',Prefer:'return=representation'};
+(async()=>{
+try{
+const r=await fetch(U+'/status?id=eq.1',{method:'PATCH',headers:H,body:JSON.stringify({aktif:true})});
+const d=await r.json();
+if(!r.ok||!d.length)throw new Error(r.ok?'baris id=1 tidak ada / diblokir RLS':JSON.stringify(d));
+fetch(U+'/pengunjung',{method:'POST',headers:H,body:JSON.stringify({sumber:'qr'})}).catch(()=>{});
+location.replace(T);
+}catch(e){document.getElementById('s').textContent='Error: '+e.message}
+})();
+</script>
+</body>
+</html>
